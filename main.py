@@ -43,8 +43,8 @@ class Player(pygame.sprite.Sprite):
         #    self.spacedown=True
         ##else:
          #   self.spacedown=False
-        if keys[pygame.K_p]:
-            print(self.shadows)
+        #if keys[pygame.K_p]:
+            #print(self.shadows)
 
     def putshadows(self):
         if len(self.shadows) > 3:
@@ -174,6 +174,53 @@ class Text():
             self.text_hover()
         screen.blit(self.image,self.rect)
 
+class Level():
+    def __init__(self,index):
+        self.index = index
+        self.complete = False
+        self.start_time=0
+
+    def level_run(self):
+        if self.index == 1:
+            self.obstacle_check = Obstacle('spikewall', 5, 0, 'bounded')
+            obstacles.add(self.obstacle_check)
+
+        elif self.index == 2:
+            self.obstacle_check = Obstacle('spikewall', 1, 0, 'unbounded')
+            obstacles.add(self.obstacle_check)
+            obstacles.add(Obstacle('spikewall', 2, 90, 'unbounded'))
+            obstacles.add(Obstacle('spikewall', 3, -90, 'unbounded'))
+
+        elif self.index == 3:
+            obstacles.add(Obstacle('spikewall', 1, -90, 'unbounded'))
+            obstacles.add(Obstacle('spikewall',10,0,'unbounded'))
+            self.start_time=pygame.time.get_ticks()
+
+        if self.complete:
+            #print('complete')
+            self.index+=1
+            self.complete = False
+        #print(self.index)
+
+    def complete_check(self):
+        if self.index == 1:
+            self.complete = self.obstacle_check.rect.bottom > 720
+        elif self.index == 2:
+            self.complete = self.obstacle_check.rect.bottom > 720
+        if self.complete:
+            #print("hi")
+
+            self.index += 1
+            self.complete = False
+            return True
+
+    def update(self):
+        self.complete_check()
+        if self.index == 3:
+            if pygame.time.get_ticks()-self.start_time == 4000:
+                obstacles.add(Obstacle('spikewall',20,180,'bounded'))
+
+
 def checkcollisions():
     if pygame.sprite.spritecollide(player,obstacles,False,pygame.sprite.collide_mask):
         player.shadows.clear()
@@ -189,22 +236,32 @@ clock = pygame.time.Clock()
 game_active = False
 
 #-------------------------GROUPS--------------------------------------
-player_group = pygame.sprite.GroupSingle()
-player = Player()
-player_group.add(player)
-obstacles = pygame.sprite.Group()
-obstacles.add(Obstacle('spikewall',1,0,'unbounded'))
-obstacles.add(Obstacle('spikewall',2,90,'unbounded'))
-obstacles.add(Obstacle('spikewall',3,-90,'unbounded'))
+#player_group = pygame.sprite.GroupSingle()
+#player = Player()
+#player_group.add(player)
+#obstacles = pygame.sprite.Group()
+#obstacles.add(Obstacle('spikewall',1,0,'unbounded'))
+#obstacles.add(Obstacle('spikewall',2,90,'unbounded'))
+#obstacles.add(Obstacle('spikewall',3,-90,'unbounded'))
 #obstacles.add(Obstacle('spikewall',4,180,'unbounded'))
-
+levels = Level(1)
 
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             exit()
-        if game_active:
+        if not game_active:
+            #print(levels.index)
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                game_active = True
+                player_group = pygame.sprite.GroupSingle()
+                player = Player()
+                player_group.add(player)
+                obstacles = pygame.sprite.Group()
+                levels.level_run()
+                #obstacles.add(Obstacle('spikewall', 4, 180, 'unbounded'))
+        else:
             if event.type == pygame.KEYDOWN:
                 #create shadow
                 if event.key == pygame.K_d:
@@ -214,13 +271,6 @@ while True:
                     player.rect.centerx = player.shadows[0][0]
                     player.rect.centery = player.shadows[0][1]
                     player.shadows.pop(0)
-        else:
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                game_active = True
-                obstacles.add(Obstacle('spikewall', 1, 0, 'unbounded'))
-                obstacles.add(Obstacle('spikewall', 2, 90, 'unbounded'))
-                obstacles.add(Obstacle('spikewall', 3, -90, 'unbounded'))
-                #obstacles.add(Obstacle('spikewall', 4, 180, 'unbounded'))
 
     if game_active:
         #background
@@ -232,11 +282,19 @@ while True:
         obstacles.update()
         obstacles.draw(screen)
 
-        game_active = checkcollisions()
+        if levels.complete_check():
+            game_active = False
+            #print('next level')
+        if game_active:
+            game_active = checkcollisions()
+
+
     else:
         screen.fill('#65db6d')
-        title_text = Text('Little Yellow',50,'yellow',360,300,False)
+        title_text = Text('Little Yellow',100,'yellow',360,300,False)
         title_text.text_blit()
+        level_text = Text(f'Level {levels.index}',50,'white',360,400,False)
+        level_text.text_blit()
 
     clock.tick(60)
     pygame.display.update()
