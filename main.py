@@ -11,6 +11,7 @@ class Player(pygame.sprite.Sprite):
         self.speed = 10*scale
         self.shadows=[]
         self.spacedown=False
+        self.bordermode = 'bounded'
     def player_input(self):
         keys=pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
@@ -45,24 +46,42 @@ class Player(pygame.sprite.Sprite):
             print(self.shadows)
 
     def putshadows(self):
-        if len(self.shadows) > 5:
-            self.shadows = self.shadows[-5:]
-        i=0
-        for shadow in self.shadows:
-            pygame.draw.circle(screen,'#4aa150',shadow,(self.rect.width)/2)
+        if len(self.shadows) > 3:
+            self.shadows = self.shadows[-3:]
+        i=1
+        for shadow in self.shadows[::-1]:
+            if i==1:
+                pygame.draw.circle(screen,'white',shadow,(self.rect.width*2/3))
+            pygame.draw.circle(screen,'#4aa150',shadow,(self.rect.width)/(2+0.2*i))
+            shadownum = Text(str(i),int(self.rect.width/2),'white',shadow[0],shadow[1],False)
+            shadownum.text_blit()
+            i+=1
+
+    def checkborder(self):
+        if self.bordermode == 'bounded':
+            if self.rect.left < 0:
+                self.rect.left = 0
+            elif self.rect.right > 720:
+                self.rect.right = 720
+            if self.rect.top < 0:
+                self.rect.top = 0
+            elif self.rect.bottom > 720:
+                self.rect.bottom = 720
+        elif self.bordermode == 'unbounded':
+            if self.rect.right < 0:
+                self.rect.left = 720
+            elif self.rect.left > 720:
+                self.rect.right = 0
+            if self.rect.bottom < 0:
+                self.rect.top = 720
+            elif self.rect.top > 720:
+                self.rect.bottom = 0
 
 
     def update(self):
         self.putshadows()
         self.player_input()
-        if self.rect.right < 0:
-            self.rect.left = 720
-        elif self.rect.left > 720:
-            self.rect.right = 0
-        if self.rect.bottom < 0:
-            self.rect.top = 720
-        elif self.rect.top > 720:
-            self.rect.bottom = 0
+        self.checkborder()
 
 class Text():
     def __init__(self,text,size,color,xpos,ypos,hover,key=None):
