@@ -1,7 +1,14 @@
 import pygame
 from sys import exit
+import math
+from random import randint
+
 pygame.init()
 scale = 0.5
+
+#--------------------EVENTS----------------------------------------
+NEXT = pygame.USEREVENT + 1
+
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
@@ -12,7 +19,7 @@ class Player(pygame.sprite.Sprite):
         self.speed = 10*scale
         self.shadows=[]
         self.spacedown=False
-        self.bordermode = 'bounded'
+        self.border_mode = 'bounded'
     def player_input(self):
         keys=pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
@@ -24,7 +31,7 @@ class Player(pygame.sprite.Sprite):
         if keys[pygame.K_DOWN]:
             self.rect.y+=self.speed
         if keys[pygame.K_LSHIFT]:
-            self.speed = 3
+            self.speed = 4
         else:
             self.speed = 10
         #for event in pygame.event.get():
@@ -59,7 +66,7 @@ class Player(pygame.sprite.Sprite):
             i+=1
 
     def check_border(self):
-        if self.bordermode == 'bounded':
+        if self.border_mode == 'bounded':
             if self.rect.left < 0:
                 self.rect.left = 0
             elif self.rect.right > 720:
@@ -68,7 +75,7 @@ class Player(pygame.sprite.Sprite):
                 self.rect.top = 0
             elif self.rect.bottom > 720:
                 self.rect.bottom = 720
-        elif self.bordermode == 'unbounded':
+        elif self.border_mode == 'unbounded':
             if self.rect.right < 0:
                 self.rect.left = 720
             elif self.rect.left > 720:
@@ -85,49 +92,58 @@ class Player(pygame.sprite.Sprite):
         self.check_border()
 
 class Obstacle(pygame.sprite.Sprite):
-    def __init__(self,type,speed,direction=None,bordermode='bounded'):
+    def __init__(self,type,speed,angle=None,border_mode='bounded',rotate_speed=None,flip=False,centerpos=None):
         super().__init__()
         self.type = type
+        self.angle = angle
         if self.type == 'spikewall':
-            self.direction = direction
             self.image = pygame.image.load('graphics/spikewall.png').convert_alpha()
-            self.image = pygame.transform.rotozoom(self.image,direction,1)
-            self.rect = self.image.get_rect(midbottom=(360,0))
+            self.image = pygame.transform.rotozoom(self.image,self.angle,1)
+            if centerpos:
+                self.rect = self.image.get_rect(center=centerpos)
+            else:
+                self.rect = self.image.get_rect(midright=(0, 360))
             self.mask = pygame.mask.from_surface(self.image)
-            if self.direction == 90:
-                self.rect.midright = (0,360)
-            elif self.direction == 180:
+            if self.angle == 90:
                 self.rect.midtop = (360,720)
-            elif self.direction == -90:
+            elif self.angle == 180:
                 self.rect.midleft = (720,360)
+            elif self.angle == -90:
+                self.rect.midbottom = (360,0)
+        elif self.type == 'spike_windmill':
+            self.i=1
+            self.flip=flip
+            self.rotate_speed = rotate_speed
+            self.image = pygame.image.load('graphics/spike_windmill.png').convert_alpha()
+            self.image = pygame.transform.flip(self.image,self.flip,False)
+            self.ref_image = self.image
+            self.rect = self.image.get_rect()
+            self.copy = self.rect
+            self.mask = pygame.mask.from_surface(self.image)
         self.speed = speed
-        self.bordermode = bordermode
+        self.border_mode = border_mode
 
     def movement(self):
-        if self.direction == 0:
-            self.rect.y += self.speed
-        elif self.direction == 180:
-            self.rect.y -= self.speed
-        elif self.direction == 90:
-            self.rect.x += self.speed
-        elif self.direction == -90:
-            self.rect.x -= self.speed
+        #print(self.rect.centery - math.sin(math.radians(self.angle)) * self.speed)
+        self.rect.center = (
+            self.rect.centerx + math.cos(math.radians(self.angle)) * self.speed,
+            self.rect.centery - math.sin(math.radians(self.angle)) * self.speed
+        )
 
-    #def check_border(self):
-     #   if self.bordermode == 'bounded':
-      #      if self.rect.right < 0:
-       #         self.rect.left = 0
-        #    elif self.rect.right > 720:
-         #       self.rect.right = 720
-          #  if self.rect.top < 0:
-           #     self.rect.top = 0
-            #elif self.rect.bottom > 720:
-             #   self.rect.bottom = 720
+        if self.type == 'spike_windmill':
+            if self.flip:
+                self.image = pygame.transform.rotate(self.ref_image,self.i*-self.rotate_speed)
+            else:
+                self.image = pygame.transform.rotate(self.ref_image,self.i*self.rotate_speed)
+            self.i+=1
+            self.mask = pygame.mask.from_surface(self.image)
+
+
     def check_border(self):
-        if self.bordermode == 'bounded':
+        if self.border_mode == 'bounded':
             if self.rect.right < 0 or self.rect.left > 720 or self.rect.top > 720 or self.rect.bottom < 0:
                 self.kill()
-        elif self.bordermode == 'unbounded':
+        elif self.border_mode == 'unbounded':
             if self.rect.right < 0:
                 self.rect.left = 720
             elif self.rect.left > 720:
@@ -174,6 +190,10 @@ class Text():
             self.text_hover()
         screen.blit(self.image,self.rect)
 
+#class Button():
+#    def __init__(self,type,):
+
+
 class Level():
     def __init__(self,index):
         self.index = index
@@ -182,43 +202,93 @@ class Level():
 
     def level_run(self):
         if self.index == 1:
-            self.obstacle_check = Obstacle('spikewall', 5, 0, 'bounded')
+            self.obstacle_check = Obstacle('spikewall', 5, -90, 'bounded')
             obstacles.add(self.obstacle_check)
 
         elif self.index == 2:
-            self.obstacle_check = Obstacle('spikewall', 1, 0, 'unbounded')
+            self.obstacle_check = Obstacle('spikewall', 1, -90, 'unbounded')
             obstacles.add(self.obstacle_check)
-            obstacles.add(Obstacle('spikewall', 2, 90, 'unbounded'))
-            obstacles.add(Obstacle('spikewall', 3, -90, 'unbounded'))
+            obstacles.add(Obstacle('spikewall', 2, 0, 'unbounded',))
+            obstacles.add(Obstacle('spikewall', 3, 180, 'unbounded'))
 
         elif self.index == 3:
-            obstacles.add(Obstacle('spikewall', 1, -90, 'unbounded'))
-            obstacles.add(Obstacle('spikewall',10,0,'unbounded'))
-            self.start_time=pygame.time.get_ticks()
+            self.obstacle_check = Obstacle('spikewall', 1, 180, 'unbounded')
+            obstacles.add(self.obstacle_check)
+            obstacles.add(Obstacle('spikewall',10,-90,'unbounded'))
+            #self.start_time=pygame.time.get_ticks()
 
-        if self.complete:
-            #print('complete')
-            self.index+=1
-            self.complete = False
+        elif self.index == 4:
+            player.rect.center = (100,100)
+            self.obstacle_check = Obstacle('spikewall',2,0,'unbounded')
+            #obstacles.add(self.obstacle_check)
+            obstacles.add(Obstacle('spike_windmill',0,0,'bounded',1))
+            obstacles.add(self.obstacle_check)
+
+        elif self.index == 5:
+            player.rect.center = (360,360)
+            #self.obstacle_check = Obstacle('spikewall',4,-45,'unbounded')
+            #self.obstacle_check.rect.center = (0,720)
+            self.obstacle_check = Obstacle('spikewall',1,0,'unbounded')
+            obstacles.add(self.obstacle_check)
+            obstacles.add(Obstacle('spikewall',10,45,'unbounded',centerpos=(0,720)))
+            obstacles.add(Obstacle('spikewall',4,-45,'unbounded',centerpos=(0,0)))
+
+        elif self.index == 6:
+            player.rect.center = (300, 360)
+            self.obstacle_check = Obstacle('spikewall',2,-90,'unbounded')
+            obstacles.add(self.obstacle_check)
+            obstacles.add(Obstacle('spikewall',10,180,'unbounded'))
+            obstacles.add(Obstacle('spikewall',3,90,'unbounded'))
+
+
+
         #print(self.index)
 
     def complete_check(self):
+
         if self.index == 1:
             self.complete = self.obstacle_check.rect.bottom > 720
         elif self.index == 2:
             self.complete = self.obstacle_check.rect.bottom > 720
+        elif self.index == 3:
+            self.complete = self.obstacle_check.rect.left < 0
+        elif self.index == 4:
+            self.complete = self.obstacle_check.rect.right > 720
+        elif self.index == 5:
+            self.complete = self.obstacle_check.rect.right > 720
+            #self.complete = self.obstacle_check.rect.right>720
+        elif self.index == 6:
+            self.complete = self.obstacle_check.rect.bottom > 720
         if self.complete:
             #print("hi")
-
-            self.index += 1
+            if self.index == 6:
+                self.index = 0
+            else:
+                self.index += 1
             self.complete = False
             return True
 
     def update(self):
         self.complete_check()
-        if self.index == 3:
-            if pygame.time.get_ticks()-self.start_time == 4000:
-                obstacles.add(Obstacle('spikewall',20,180,'bounded'))
+        #if self.index == 3:
+            #if pygame.time.get_ticks()-self.start_time == 4000:
+                #obstacles.add(Obstacle('spikewall',20,180,'bounded'))
+
+class Music():
+    def __init__(self):
+        self.mlist = ['sounds/shostakovich.wav','sounds/brahms.wav',
+                      'sounds/lacrimosa.wav','sounds/requiem.wav','sounds/fortuna.wav']
+        self.index = randint(0,4)
+        pygame.mixer.music.load(self.mlist[self.index])
+        pygame.mixer.music.play()
+        pygame.mixer.music.set_endevent(NEXT)
+        pygame.mixer.music.set_volume(0.5)
+    def mnext(self):
+        self.index=(self.index+1)%len(self.mlist)
+        pygame.mixer.music.load(self.mlist[self.index])
+        pygame.mixer.music.play()
+        pygame.mixer.music.set_endevent(NEXT)
+        pygame.mixer.music.set_volume(0.5)
 
 
 def checkcollisions():
@@ -229,11 +299,12 @@ def checkcollisions():
         return False
     return True
 
-
+#---------------------INITIALIZE------------------------------------
 screen = pygame.display.set_mode((720,720))
 pygame.display.set_caption('Little Yellow')
 clock = pygame.time.Clock()
 game_active = False
+musics = Music()
 
 #-------------------------GROUPS--------------------------------------
 #player_group = pygame.sprite.GroupSingle()
@@ -244,21 +315,24 @@ game_active = False
 #obstacles.add(Obstacle('spikewall',2,90,'unbounded'))
 #obstacles.add(Obstacle('spikewall',3,-90,'unbounded'))
 #obstacles.add(Obstacle('spikewall',4,180,'unbounded'))
-levels = Level(1)
+levels = Level(6)
+
+
+
+
 
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             exit()
+        if event.type == NEXT:
+            musics.mnext()
+
         if not game_active:
             #print(levels.index)
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 game_active = True
-                player_group = pygame.sprite.GroupSingle()
-                player = Player()
-                player_group.add(player)
-                obstacles = pygame.sprite.Group()
                 levels.level_run()
                 #obstacles.add(Obstacle('spikewall', 4, 180, 'unbounded'))
         else:
@@ -291,10 +365,19 @@ while True:
 
     else:
         screen.fill('#65db6d')
-        title_text = Text('Little Yellow',100,'yellow',360,300,False)
-        title_text.text_blit()
-        level_text = Text(f'Level {levels.index}',50,'white',360,400,False)
-        level_text.text_blit()
+        player_group = pygame.sprite.GroupSingle()
+        player = Player()
+        player_group.add(player)
+        obstacles = pygame.sprite.Group()
+        if levels.index == 0:
+            win_message = Text('YOU WIN!!!!!!!', 100, 'yellow', 360, 360, False)
+            win_message.text_blit()
+        else:
+            screen.fill('#65db6d')
+            title_text = Text('Little Yellow',100,'yellow',360,300,False)
+            title_text.text_blit()
+            level_text = Text(f'Level {levels.index}',50,'white',360,400,False)
+            level_text.text_blit()
 
     clock.tick(60)
     pygame.display.update()
