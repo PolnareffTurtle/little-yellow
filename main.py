@@ -2,9 +2,9 @@ import pygame
 from sys import exit
 import math
 from random import randint
+import asyncio
 
 pygame.init()
-scale = 0.5
 
 #--------------------EVENTS----------------------------------------
 NEXT = pygame.USEREVENT + 1
@@ -12,23 +12,24 @@ NEXT = pygame.USEREVENT + 1
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
+        self.scale = 0.5
         self.image = pygame.image.load('graphics/playericon.png').convert_alpha()
-        self.image = pygame.transform.rotozoom(self.image,0,0.05*scale)
+        self.image = pygame.transform.rotozoom(self.image,0,0.05*self.scale)
         self.rect = self.image.get_rect(center = (360,360))
         self.mask = pygame.mask.from_surface(self.image)
-        self.speed = 10*scale
+        self.speed = 10*self.scale
         self.shadows=[]
         self.spacedown=False
         self.border_mode = 'bounded'
     def player_input(self):
         keys=pygame.key.get_pressed()
-        if keys[pygame.K_LEFT]:
+        if keys[pygame.K_a]:
             self.rect.x-=self.speed
-        if keys[pygame.K_RIGHT]:
+        if keys[pygame.K_d]:
             self.rect.x += self.speed
-        if keys[pygame.K_UP]:
+        if keys[pygame.K_w]:
             self.rect.y-= self.speed
-        if keys[pygame.K_DOWN]:
+        if keys[pygame.K_s]:
             self.rect.y+=self.speed
         if keys[pygame.K_LSHIFT]:
             self.speed = 4
@@ -59,8 +60,8 @@ class Player(pygame.sprite.Sprite):
         i=1
         for shadow in self.shadows:
             if i==1:
-                pygame.draw.circle(screen,'white',shadow,(self.rect.width*2/3))
-            pygame.draw.circle(screen,'#4aa150',shadow,(self.rect.width)/(2+0.2*i))
+                pygame.draw.circle(app.screen,'white',shadow,(self.rect.width*2/3))
+            pygame.draw.circle(app.screen,'#4aa150',shadow,(self.rect.width)/(2+0.2*i))
             shadownum = Text(str(i),int(self.rect.width/2),'white',shadow[0],shadow[1],False)
             shadownum.text_blit()
             i+=1
@@ -157,14 +158,14 @@ class Obstacle(pygame.sprite.Sprite):
         self.movement()
 
 class Text():
-    def __init__(self,text,size,color,xpos,ypos,hover,key=None):
+    def __init__(self,text,size,color,xpos,ypos,hover=None,key=None):
         self.key = key
         self.text = text
         self.color = color
         self.hover = hover
         self.center = (xpos,ypos)
-        self.font = pygame.font.Font(None,size)
-        self.font2 = pygame.font.Font(None,int(size*1.5))
+        self.font = pygame.font.Font('fonts/UbuntuTitling-Bold.ttf',size)
+        self.font2 = pygame.font.Font('fonts/UbuntuTitling-Bold.ttf',int(size*1.5))
         self.image = self.font.render(text,True,color)
         self.rect = self.image.get_rect(center=self.center)
 
@@ -188,10 +189,83 @@ class Text():
     def text_blit(self):
         if self.hover:
             self.text_hover()
-        screen.blit(self.image,self.rect)
+        app.screen.blit(self.image,self.rect)
 
-#class Button():
-#    def __init__(self,type,):
+class Button(pygame.sprite.Sprite):
+    def __init__(self,centerpos,type='level',level=None,width=400,height=100,color='white'):
+        super().__init__()
+        #surf = pygame.Surface(width,height)
+        self.type = type
+        if self.type == 'play':
+            self.image = pygame.image.load('graphics/assets/png/Buttons/Square-Medium/ArrowRight/Default.png').convert_alpha()
+        elif self.type == 'home':
+            self.image = pygame.image.load('graphics/assets/png/Buttons/Square-Medium/Home/Default.png').convert_alpha()
+        elif self.type == 'level':
+            self.level = level
+            self.image = pygame.image.load('graphics/assets/png/Button/Square-Medium/Default/Background.png').convert_alpha()
+        elif self.type == 'level_select':
+            self.image = pygame.image.load('graphics/assets/png/Buttons/Square-Medium/Levels/Default.png').convert_alpha()
+        elif self.type == 'mute':
+            self.soundon = pygame.image.load('graphics/assets/png/Buttons/Square-Medium/SoundOn/Default.png').convert_alpha()
+            self.soundoff = pygame.image.load('graphics/assets/png/Buttons/Square-Medium/SoundOff/Default.png').convert_alpha()
+            if app.pausemusic:
+                self.image = self.soundoff
+            else:
+                self.image = self.soundon
+        self.rect = self.image.get_rect(center=centerpos)
+        if self.type == 'level':
+            self.text = Text(str(self.level),50,'white',self.rect.centerx,self.rect.centery)
+        self.mousedown=False
+
+    def clicked(self):
+
+        if pygame.mouse.get_pressed()[0] and self.rect.collidepoint(pygame.mouse.get_pos()):
+            self.mousedown=True
+            #print('hi')
+
+        else:
+            if self.mousedown:
+                #print('clicked')
+                pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+                self.mousedown=False
+                return True
+
+        #mousedown = pygame.mouse.get_pressed()[0]
+        #keydown = pygame.key.get_pressed()[key]
+        #if self.rect.collidepoint(pygame.mouse.get_pos()) and mousedown:
+        #    print('clicked')
+        #    pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+        #    return True
+
+    def update(self):
+        if self.type == 'level':
+            self.text.text_blit()
+        #if self.type == 'mute':
+            #print(self.toggle)
+
+        if self.clicked():
+            #print('hji')
+            if self.type == 'play':
+                #print('play')
+                app.game_state = GameState.GAME_RUNNING
+            elif self.type == 'home':
+                #print('go back')
+                app.game_state = GameState.MAIN_MENU
+            elif self.type == 'level':
+                app.levels.index = self.level
+                app.game_state = GameState.GAME_RUNNING
+            elif self.type == 'level_select':
+                app.game_state = GameState.LEVEL_SELECT
+            elif self.type == 'mute':
+                app.pausemusic = not app.pausemusic
+
+
+        if self.type == 'mute':
+            if app.pausemusic:
+                self.image = self.soundoff
+            else:
+                self.image = self.soundon
+
 
 
 class Level():
@@ -199,46 +273,53 @@ class Level():
         self.index = index
         self.complete = False
         self.start_time=0
+        self.obstacle_check = None
 
     def level_run(self):
         if self.index == 1:
             self.obstacle_check = Obstacle('spikewall', 5, -90, 'bounded')
-            obstacles.add(self.obstacle_check)
+            app.obstacles.add(self.obstacle_check)
 
         elif self.index == 2:
             self.obstacle_check = Obstacle('spikewall', 1, -90, 'unbounded')
-            obstacles.add(self.obstacle_check)
-            obstacles.add(Obstacle('spikewall', 2, 0, 'unbounded',))
-            obstacles.add(Obstacle('spikewall', 3, 180, 'unbounded'))
+            app.obstacles.add(self.obstacle_check)
+            app.obstacles.add(Obstacle('spikewall', 2, 0, 'unbounded',))
+            app.obstacles.add(Obstacle('spikewall', 3, 180, 'unbounded'))
+
+        elif self.index == 4:
+            app.player.rect.center = (360, 360)
+            self.obstacle_check = Obstacle('spikewall', 1, -90, 'unbounded')
+            app.obstacles.add(self.obstacle_check)
+            app.obstacles.add(Obstacle('spikewall', 1, 0, 'unbounded'))
+            app.obstacles.add(Obstacle('spikewall', 1, 180, 'unbounded'))
+            app.obstacles.add(Obstacle('spikewall', 1, 90, 'unbounded'))
+
 
         elif self.index == 3:
             self.obstacle_check = Obstacle('spikewall', 1, 180, 'unbounded')
-            obstacles.add(self.obstacle_check)
-            obstacles.add(Obstacle('spikewall',10,-90,'unbounded'))
+            app.obstacles.add(self.obstacle_check)
+            app.obstacles.add(Obstacle('spikewall',10,-90,'unbounded'))
             #self.start_time=pygame.time.get_ticks()
 
-        elif self.index == 4:
-            player.rect.center = (100,100)
-            self.obstacle_check = Obstacle('spikewall',2,0,'unbounded')
-            #obstacles.add(self.obstacle_check)
-            obstacles.add(Obstacle('spike_windmill',0,0,'bounded',1))
-            obstacles.add(self.obstacle_check)
+
 
         elif self.index == 5:
-            player.rect.center = (360,360)
+            app.player.rect.center = (360,360)
             #self.obstacle_check = Obstacle('spikewall',4,-45,'unbounded')
             #self.obstacle_check.rect.center = (0,720)
             self.obstacle_check = Obstacle('spikewall',1,0,'unbounded')
-            obstacles.add(self.obstacle_check)
-            obstacles.add(Obstacle('spikewall',10,45,'unbounded',centerpos=(0,720)))
-            obstacles.add(Obstacle('spikewall',4,-45,'unbounded',centerpos=(0,0)))
+            app.obstacles.add(self.obstacle_check)
+            app.obstacles.add(Obstacle('spikewall',10,45,'unbounded',centerpos=(0,720)))
+            app.obstacles.add(Obstacle('spikewall',4,-45,'unbounded',centerpos=(0,0)))
 
         elif self.index == 6:
-            player.rect.center = (300, 360)
+            app.player.rect.center = (300, 360)
             self.obstacle_check = Obstacle('spikewall',2,-90,'unbounded')
-            obstacles.add(self.obstacle_check)
-            obstacles.add(Obstacle('spikewall',10,180,'unbounded'))
-            obstacles.add(Obstacle('spikewall',3,90,'unbounded'))
+            app.obstacles.add(self.obstacle_check)
+            app.obstacles.add(Obstacle('spikewall',10,180,'unbounded'))
+            app.obstacles.add(Obstacle('spikewall',3,90,'unbounded'))
+
+
 
 
 
@@ -253,15 +334,15 @@ class Level():
         elif self.index == 3:
             self.complete = self.obstacle_check.rect.left < 0
         elif self.index == 4:
-            self.complete = self.obstacle_check.rect.right > 720
+            self.complete = self.obstacle_check.rect.bottom > 720
         elif self.index == 5:
             self.complete = self.obstacle_check.rect.right > 720
-            #self.complete = self.obstacle_check.rect.right>720
         elif self.index == 6:
             self.complete = self.obstacle_check.rect.bottom > 720
         if self.complete:
-            #print("hi")
-            if self.index == 6:
+            app.obstacles.empty()
+            app.player.shadows.clear()
+            if self.index == 7:
                 self.index = 0
             else:
                 self.index += 1
@@ -279,105 +360,198 @@ class Music():
         self.mlist = ['sounds/shostakovich.wav','sounds/brahms.wav',
                       'sounds/lacrimosa.wav','sounds/requiem.wav','sounds/fortuna.wav']
         self.index = randint(0,4)
+        self.pause = False
         pygame.mixer.music.load(self.mlist[self.index])
         pygame.mixer.music.play()
         pygame.mixer.music.set_endevent(NEXT)
         pygame.mixer.music.set_volume(0.5)
+
     def mnext(self):
         self.index=(self.index+1)%len(self.mlist)
         pygame.mixer.music.load(self.mlist[self.index])
         pygame.mixer.music.play()
         pygame.mixer.music.set_endevent(NEXT)
         pygame.mixer.music.set_volume(0.5)
-
-
-def checkcollisions():
-    if pygame.sprite.spritecollide(player,obstacles,False,pygame.sprite.collide_mask):
-        player.shadows.clear()
-        obstacles.empty()
-        player.rect.center = (360,360)
-        return False
-    return True
-
-#---------------------INITIALIZE------------------------------------
-screen = pygame.display.set_mode((720,720))
-pygame.display.set_caption('Little Yellow')
-clock = pygame.time.Clock()
-game_active = False
-musics = Music()
-
-#-------------------------GROUPS--------------------------------------
-#player_group = pygame.sprite.GroupSingle()
-#player = Player()
-#player_group.add(player)
-#obstacles = pygame.sprite.Group()
-#obstacles.add(Obstacle('spikewall',1,0,'unbounded'))
-#obstacles.add(Obstacle('spikewall',2,90,'unbounded'))
-#obstacles.add(Obstacle('spikewall',3,-90,'unbounded'))
-#obstacles.add(Obstacle('spikewall',4,180,'unbounded'))
-levels = Level(6)
-
-
-
-
-
-while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            exit()
-        if event.type == NEXT:
-            musics.mnext()
-
-        if not game_active:
-            #print(levels.index)
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                game_active = True
-                levels.level_run()
-                #obstacles.add(Obstacle('spikewall', 4, 180, 'unbounded'))
+    def update(self):
+        if app.pausemusic:
+            pygame.mixer.music.pause()
         else:
-            if event.type == pygame.KEYDOWN:
-                #create shadow
-                if event.key == pygame.K_d:
-                    player.shadows.append((player.rect.centerx,player.rect.centery))
-                #flash to shadow
-                if event.key == pygame.K_f and player.shadows:
-                    player.rect.centerx = player.shadows[0][0]
-                    player.rect.centery = player.shadows[0][1]
-                    player.shadows.pop(0)
+            pygame.mixer.music.unpause()
 
-    if game_active:
-        #background
-        screen.fill('#65db6d')
-
-        #player
-        player.update()
-        player_group.draw(screen)
-        obstacles.update()
-        obstacles.draw(screen)
-
-        if levels.complete_check():
-            game_active = False
-            #print('next level')
-        if game_active:
-            game_active = checkcollisions()
+class GameState():
+    MAIN_MENU = 1
+    LEVEL_SELECT = 2
+    GAME_RUNNING = 3
 
 
-    else:
-        screen.fill('#65db6d')
-        player_group = pygame.sprite.GroupSingle()
-        player = Player()
-        player_group.add(player)
-        obstacles = pygame.sprite.Group()
-        if levels.index == 0:
-            win_message = Text('YOU WIN!!!!!!!', 100, 'yellow', 360, 360, False)
-            win_message.text_blit()
-        else:
-            screen.fill('#65db6d')
-            title_text = Text('Little Yellow',100,'yellow',360,300,False)
-            title_text.text_blit()
-            level_text = Text(f'Level {levels.index}',50,'white',360,400,False)
-            level_text.text_blit()
+class App():
+    def __init__(self):
+        #---------------------INITIALIZE------------------------------------
+        self.screen = pygame.display.set_mode((720,720))
+        pygame.display.set_caption('Little Yellow')
+        self.clock = pygame.time.Clock()
+        self.game_active = False
+        self.musics = Music()
+        self.pausemusic = False
+        self.game_state = GameState.MAIN_MENU
+        self.running = True
 
-    clock.tick(60)
-    pygame.display.update()
+        #-------------------------GROUPS--------------------------------------
+        self.player_group = pygame.sprite.GroupSingle()
+        self.player = Player()
+        self.player_group.add(self.player)
+        self.obstacles = pygame.sprite.Group()
+        self.levels = Level(1)
+
+    def checkcollisions(self):
+        if pygame.sprite.spritecollide(self.player, self.obstacles, False, pygame.sprite.collide_mask):
+            self.player.shadows.clear()
+            self.obstacles.empty()
+            self.player.rect.center = (360, 360)
+            return False
+        return True
+
+    def quit_game(self):
+        self.running = False
+        pygame.quit()
+        #additional things that happen when quit game can be put here
+
+    async def main_menu(self):
+        #print('homescreen')
+        self.running = True
+        self.buttons = pygame.sprite.Group()
+        self.buttons.add(Button((300,450),type='play'))
+        self.buttons.add(Button((420,450),type='level_select'))
+        self.buttons.add(Button((600,100),type='mute'))
+        while self.game_state == GameState.MAIN_MENU:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+
+                    self.quit_game()
+                if event.type == NEXT:
+                    self.musics.mnext()
+            self.screen.fill('#65db6d')
+            self.title_text = Text('Little Yellow', 100, 'white', 360, 300, False)
+            self.title_text.text_blit()
+            self.buttons.draw(self.screen)
+            self.buttons.update()
+            self.musics.update()
+            self.clock.tick(60)
+            pygame.display.update()
+
+            await asyncio.sleep(0)
+
+    async def level_select(self):
+        #print('homescreen')
+        self.running=True
+        self.buttons = pygame.sprite.Group()
+        #adding the level buttons
+        for y in range(5):
+            for x in range(5):
+                self.buttons.add(Button((160+x*100,100+y*100),type='level',level=5*y+x+1))
+        self.buttons.add(Button((360,630),type='home'))
+        self.buttons.add(Button((600,100),type='mute'))
+        while self.game_state == GameState.LEVEL_SELECT:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.quit_game()
+                if event.type == NEXT:
+                    self.musics.mnext()
+            self.screen.fill('#65db6d')
+            #title_text = Text('Little Yellow', 100, 'white', 360, 300, False)
+            #title_text.text_blit()
+            self.buttons.draw(self.screen)
+            self.buttons.update()
+            self.musics.update()
+            self.clock.tick(60)
+            pygame.display.update()
+
+            await asyncio.sleep(0)
+
+    async def game(self):
+        self.buttons = pygame.sprite.Group()
+        self.buttons.add(Button((360, 450), type='home'))
+        self.buttons.add(Button((600, 100), type='mute'))
+
+        while self.game_state == GameState.GAME_RUNNING:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.quit_game()
+                if event.type == NEXT:
+                    self.musics.mnext()
+
+                if not self.game_active:
+                    #print(levels.index)
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                        self.game_active = True
+                        self.levels.level_run()
+                        #obstacles.add(Obstacle('spikewall', 4, 180, 'unbounded'))
+                else:
+                    if event.type == pygame.KEYDOWN:
+                        #create shadow
+                        if event.key == pygame.K_n:
+                            self.player.shadows.append((self.player.rect.centerx,self.player.rect.centery))
+                        #flash to shadow
+                        if event.key == pygame.K_m and self.player.shadows:
+                            self.player.rect.centerx = self.player.shadows[0][0]
+                            self.player.rect.centery = self.player.shadows[0][1]
+                            self.player.shadows.pop(0)
+
+            if self.game_active:
+                #background
+                self.screen.fill('#65db6d')
+
+                #player
+                self.player.update()
+                self.player_group.draw(self.screen)
+                self.obstacles.update()
+                self.obstacles.draw(self.screen)
+
+                if self.levels.complete_check():
+                    self.game_active = False
+                    #print('next level')
+                if self.game_active:
+                    self.game_active = self.checkcollisions()
+
+
+            else:
+
+                self.screen.fill('#65db6d')
+                self.buttons.draw(self.screen)
+                self.buttons.update()
+                #player_group = pygame.sprite.GroupSingle()
+                #player = Player()
+                #player_group.add(player)
+                #obstacles = pygame.sprite.Group()
+                if self.levels.index == 0:
+                    self.win_message = Text('YOU WIN!!!!!!!', 100, 'white', 360, 360, False)
+                    self.win_message.text_blit()
+                else:
+                    #screen.fill('#65db6d')
+                    #title_text = Text('Little Yellow',100,'white',360,300,False)
+                    #title_text.text_blit()
+                    self.level_text = Text(f'Level {self.levels.index}',100,'white',360,300,False)
+                    self.level_text.text_blit()
+            self.musics.update()
+            self.clock.tick(60)
+            pygame.display.update()
+
+            await asyncio.sleep(0)
+
+    async def game_loop(self):
+        while self.running:
+            if self.game_state == GameState.MAIN_MENU:
+                await self.main_menu()
+            elif self.game_state == GameState.LEVEL_SELECT:
+                await self.level_select()
+            elif self.game_state == GameState.GAME_RUNNING:
+                await self.game()
+
+if __name__ == '__main__':
+    app = App()
+
+    try:
+        asyncio.run(app.game_loop())
+    finally:
+        print('hi')
+        exit()
