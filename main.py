@@ -414,6 +414,7 @@ class App():
     def quit_game(self):
         self.running = False
         pygame.quit()
+        exit()
         #additional things that happen when quit game can be put here
 
     async def main_menu(self):
@@ -549,9 +550,4 @@ class App():
 
 if __name__ == '__main__':
     app = App()
-
-    try:
-        asyncio.run(app.game_loop())
-    finally:
-        print('hi')
-        exit()
+    asyncio.run(app.game_loop())
